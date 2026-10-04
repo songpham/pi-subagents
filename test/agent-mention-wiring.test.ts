@@ -272,6 +272,23 @@ describe("messaging a finished agent", () => {
   });
 });
 
+describe("grouped completion notifications", () => {
+  it("steers a grouped result to the parent", async () => {
+    const { pi, tools } = boot();
+    vi.mocked(runAgent)
+      .mockResolvedValueOnce({ responseText: "first", session: fakeSession(), aborted: false, steered: false, failure: undefined } as any)
+      .mockResolvedValueOnce({ responseText: "second", session: fakeSession(), aborted: false, steered: false, failure: undefined } as any);
+
+    await Promise.all([spawnBackground(tools), spawnBackground(tools)]);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(pi.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ customType: "subagent-notification", content: expect.stringContaining("group completed") }),
+      expect.objectContaining({ deliverAs: "steer", triggerTurn: true }),
+    );
+  });
+});
+
 describe("stacking the suggestion provider on pi's", () => {
   /** A session_start ctx with the UI surface the registration path touches. */
   const uiCtx = (mode: string) =>
