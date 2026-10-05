@@ -36,6 +36,10 @@ vi.mock("@earendil-works/pi-coding-agent", async () => {
 import { agentMentionReminder } from "../src/mention.js";
 import { runMentionClone } from "../src/mention-clone.js";
 
+// A clone reloads Pi's real resource loader; cold discovery under full-suite CPU
+// contention can exceed Vitest's 5s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 /** One user turn and its reply, as buildSessionContext resolves them. */
 const CONVERSATION = [
   { role: "user", content: [{ type: "text", text: "hi" }] },
@@ -193,17 +197,21 @@ describe("cloning the conversation", () => {
 
     expect(result).toEqual({ spawned: true });
     expect(session.agent.state.messages).toEqual([]);
-    expect(session.agent.state.systemPrompt).toBe("the live system prompt");
+    const resourceLoader = createAgentSession.mock.calls[0][0].resourceLoader;
+    expect(resourceLoader.getSystemPrompt()).toBe("the live system prompt");
+    expect(resourceLoader.getAppendSystemPrompt()).toEqual([]);
   });
 
   it("carries the live system prompt rather than the one it rebuilt", async () => {
     // createAgentSession derives a prompt from cwd and agentDir. Close, but not
     // what the user's model is working under — extensions add to it per turn.
-    const session = cloneSession(callsAgent());
+    cloneSession(callsAgent());
 
     await runMentionClone(opts());
 
-    expect(session.agent.state.systemPrompt).toBe("the live system prompt");
+    const resourceLoader = createAgentSession.mock.calls[0][0].resourceLoader;
+    expect(resourceLoader.getSystemPrompt()).toBe("the live system prompt");
+    expect(resourceLoader.getAppendSystemPrompt()).toEqual([]);
   });
 
   it("inherits the parent's model, thinking level and providers", async () => {

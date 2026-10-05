@@ -20,7 +20,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
 
-  # The pi devDependencies pin the compile baseline POST-migration (0.84.2), so the `build`
+  # The pi devDependencies pin the compile baseline at Pi 1.0.2, so the `build`
   # job above is what guards the modelRegistry -> modelRuntime world: PR #152's
   # isolated-provider test (test/e2e/isolated-provider.e2e.test.ts) skips itself on
   # pre-migration Pi and now actually runs there.
@@ -55,7 +55,7 @@ jobs:
   # Forward canary: reinstall whatever Pi is `latest` over the pin, so a release newer than
   # the baseline surfaces here before it reaches users. It runs the full typecheck + suite,
   # not a hand-picked file list, so new drift can't hide in a test nobody remembered to add
-  # here. Both steps pass as of the 0.84.2 baseline — a failure IS fresh breakage.
+  # here. This canary surfaces drift from future Pi releases without blocking merges.
   compat-latest-pi:
     runs-on: ubuntu-latest
     continue-on-error: true # current Pi is not a hard support guarantee; surface breakage without blocking

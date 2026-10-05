@@ -65,7 +65,9 @@ import type { Model } from "@earendil-works/pi-ai";
 import {
   buildSessionContext,
   createAgentSession,
+  DefaultResourceLoader,
   type ExtensionContext,
+  getAgentDir,
   SessionManager,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -125,7 +127,10 @@ export async function runMentionClone(opts: MentionCloneOptions): Promise<Mentio
         { ...(params as Record<string, unknown>), run_in_background: true } as typeof params,
         signal,
         onUpdate,
-        ctx,
+        // Event handlers expose ExtensionContext; tool execute's context type
+        // varies across the declared Pi compatibility range. This handler only
+        // uses fields shared by both shapes.
+        ctx as Parameters<ToolDefinition["execute"]>[4],
       );
     },
   };
@@ -146,8 +151,22 @@ export async function runMentionClone(opts: MentionCloneOptions): Promise<Mentio
     // the settings level instead, which is what a session that never ran
     // `/think` is on anyway. Same shim shape as `modelRuntime` below.
     const thinkingLevel = (ctx as { thinkingLevel?: ThinkingLevel }).thinkingLevel;
-    const created = await runInChildSessionContext(() =>
-      createAgentSession({
+    // AgentState.systemPrompt is read-only in current Pi. Feed the live prompt
+    // through resource discovery instead; context-file/appended prompts are
+    // already part of it and must not be duplicated.
+    const systemPrompt = ctx.getSystemPrompt?.();
+    const resourceLoader = new DefaultResourceLoader({
+      cwd: ctx.cwd,
+      agentDir: getAgentDir(),
+      ...(systemPrompt && {
+        noContextFiles: true,
+        systemPromptOverride: () => systemPrompt,
+        appendSystemPromptOverride: () => [],
+      }),
+    });
+    const created = await runInChildSessionContext(async () => {
+      await resourceLoader.reload();
+      return createAgentSession({
         cwd: ctx.cwd,
         // Nothing about the copy is worth persisting, and an in-memory manager
         // is also what keeps the real session untouched.
@@ -156,6 +175,7 @@ export async function runMentionClone(opts: MentionCloneOptions): Promise<Mentio
         ...(thinkingLevel && { thinkingLevel }),
         modelRegistry: ctx.modelRegistry,
         ...(parentModelRuntime !== undefined && { modelRuntime: parentModelRuntime as never }),
+        resourceLoader,
         // An allowlist naming exactly the clone's own tool. NOT `noTools:
         // "all"`, whose doc comment ("start with no tools enabled") reads like
         // it spares custom tools and does not: it resolves to an EMPTY
@@ -166,16 +186,9 @@ export async function runMentionClone(opts: MentionCloneOptions): Promise<Mentio
         // agent-runner's `tools: sessionTools` beside its nested `customTools`.
         tools: [cloneAgentTool.name],
         customTools: [cloneAgentTool],
-      } as Parameters<typeof createAgentSession>[0]),
-    );
+      } as Parameters<typeof createAgentSession>[0]);
+    });
     session = created.session;
-
-    // The clone rebuilds a system prompt from cwd and agentDir, which is close
-    // but not the live one — extensions contribute to it per turn. Copy the
-    // real thing, so the copy reasons under the instructions the user's model
-    // is actually working under.
-    const systemPrompt = ctx.getSystemPrompt?.();
-    if (systemPrompt) session.agent.state.systemPrompt = systemPrompt;
 
     // The conversation itself. Pushed rather than assigned so the array the
     // session was built around stays the one it goes on using.

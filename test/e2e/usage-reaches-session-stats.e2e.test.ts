@@ -114,22 +114,24 @@ describe("subagent usage reaches the parent session's stats (real pi)", () => {
     }
   });
 
-  it("leaves the context-window percentage alone", async () => {
-    // pi derives context usage from assistant messages only. If that ever
-    // changed, a delegating session would look like it was filling its context
-    // with work that happened somewhere else entirely — and users would compact
-    // for no reason.
-    const session = await realSession();
+  it("does not count reported usage as context text", async () => {
+    // Pi estimates context from the persisted conversation text, so the short
+    // tool result can move the estimate slightly. The reported 150k input tokens
+    // must not be added to that estimate as though they were parent messages.
+    const withUsage = await realSession();
+    const withoutUsage = await realSession();
     try {
-      const before = session.getSessionStats().contextUsage?.percent ?? null;
-
       const pool = new PendingUsagePool();
       pool.add({ input: 150_000, output: 400, cacheWrite: 100, cost: 1.5 });
-      session.sessionManager.appendMessage(toolResultCarrying(pool.drain()) as any);
+      withUsage.sessionManager.appendMessage(toolResultCarrying(pool.drain()) as any);
+      withoutUsage.sessionManager.appendMessage(toolResultCarrying(undefined) as any);
 
-      expect(session.getSessionStats().contextUsage?.percent ?? null).toBe(before);
+      expect(withUsage.getSessionStats().contextUsage?.percent ?? null).toBe(
+        withoutUsage.getSessionStats().contextUsage?.percent ?? null,
+      );
     } finally {
-      session.dispose?.();
+      withUsage.dispose?.();
+      withoutUsage.dispose?.();
     }
   });
 
