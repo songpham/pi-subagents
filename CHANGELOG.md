@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **The workflow stand-down now recognises a lowercase `workflow` tool** ([#283](https://github.com/tintinweb/pi-subagents/issues/283) — thanks [@zampierilucas](https://github.com/zampierilucas)). The match is exact on purpose, and the set held `Workflow` and `SubagentWorkflow` only, so `@quintinshaw/pi-dynamic-workflows` — which registers lowercase `workflow` — never tripped it: with `workflowsEnabled` unset, both orchestrators reached the model and nothing warned. Adding the third name is the whole fix; exactness is kept, so a `list_workflows` still cannot take the feature down.
 - **Background completion notifications reach the parent at the next turn boundary.** They previously waited until the parent stopped making tool calls, leaving completed results out of context while it continued other work.
+- **Workflow completion notifications use the same steer delivery.** The parent now sees a finished workflow at its next assistant-turn boundary instead of waiting until it would otherwise stop.
 - **Mention clones retain the live system prompt on Pi 1.x.** They now pass it through resource loading rather than mutating read-only session state.
 
 ## [0.19.0] - 2026-08-25

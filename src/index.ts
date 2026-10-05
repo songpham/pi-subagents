@@ -2373,9 +2373,10 @@ Terse command-style prompts produce shallow, generic work.
   }
 
   /**
-   * Hand a finished run back to the model through the SAME channel a background
-   * agent uses — held briefly by `scheduleNudge`, delivered as a follow-up that
-   * triggers a turn, rendered by the existing `subagent-notification` renderer.
+   * Hand a finished run back to the model through the same notification renderer
+   * as background agents. Use steer so a parent still doing other tool work
+   * sees the result at the next assistant-turn boundary instead of waiting
+   * until its current run would otherwise stop.
    */
   function notifyWorkflowFinished(task: WorkflowTask) {
     widget.update();
@@ -2398,7 +2399,7 @@ Terse command-style prompts produce shallow, generic work.
           error: task.error,
           resultPreview: result.length > 500 ? `${result.slice(0, 500)}…` : result,
         },
-      }, { deliverAs: "followUp", triggerTurn: true });
+      }, { deliverAs: "steer", triggerTurn: true });
     });
   }
 
